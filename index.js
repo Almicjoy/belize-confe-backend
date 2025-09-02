@@ -27,7 +27,7 @@ app.post("/api/register", async (req, res) => {
       formData.append(key, String(value ?? "")); // ensure it's a string
     });
 
-    console.log("FormData keys:", [...formData.keys()]); // debug check
+    console.log("FormData fields:", formData); // debug check
 
     const response = await axios.post(
       "https://sandbox.belizebank.com/payment/rest/register.do",
