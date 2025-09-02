@@ -18,7 +18,7 @@ router.post('/callback', (req, res) => {
     // Optional: You could save this to a DB or session here
   
     // Redirect to return page on frontend
-    const redirectUrl = `https://localhost:3000/return?status=${status}&operation=${operation}&orderNumber=${orderNumber}`;
+    const redirectUrl = `https://la-confe-bz.vercel.app?status=${status}&operation=${operation}&orderNumber=${orderNumber}`;
     res.redirect(302, redirectUrl);
   });
 
