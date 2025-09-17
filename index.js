@@ -67,10 +67,10 @@ app.post("/api/payment/callback", (req, res) => {
   const user = users.find(u => u.email === req.body.email); // OR your order-user mapping
   const planId = req.body.plan || 1; // you can pass this from frontend as dynamicCallbackUrl param
 
-  if (!user) {
-    console.warn("User not found for callback!");
-    return res.status(404).send("User not found");
-  }
+  // if (!user) {
+  //   console.warn("User not found for callback!");
+  //   return res.status(404).send("User not found");
+  // }
 
   let redirectUrl = "https://la-confe-bz.vercel.app/en/dashboard";
 
