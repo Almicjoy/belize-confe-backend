@@ -76,8 +76,8 @@ app.post("/api/payment/callback", (req, res) => {
 
   if (status === "1") {
     // Payment success
-    user.hasSelectedPlan = true;
-    user.selectedPlan = planId;
+    // user.hasSelectedPlan = true;
+    // user.selectedPlan = planId;
 
     // Redirect with success query params
     redirectUrl += `?status=success&plan=${encodeURIComponent(planName)}&orderId=${mdOrder}&orderNumber=${orderNumber}`;
