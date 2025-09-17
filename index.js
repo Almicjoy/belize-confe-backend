@@ -80,7 +80,7 @@ app.post("/api/payment/callback", (req, res) => {
     // user.selectedPlan = planId;
 
     // Redirect with success query params
-    redirectUrl += `?status=success&plan=${encodeURIComponent(planName)}&orderId=${mdOrder}&orderNumber=${orderNumber}`;
+    redirectUrl += `?status=success&plan=${encodeURIComponent(planId)}&orderId=${mdOrder}&orderNumber=${orderNumber}`;
   } else {
     // Payment failure
     const errorMsg = req.body.errorMessage || "Payment failed";
