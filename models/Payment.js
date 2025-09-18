@@ -9,9 +9,7 @@ const paymentSchema = new mongoose.Schema({
   },
   userId: {
     type: String,
-    ref: 'User',
-    required: true,
-    index: true
+    required: true
   },
   orderNumber: {
     type: String,
