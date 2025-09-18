@@ -51,33 +51,35 @@ app.post("/api/register", async (req, res) => {
         if (!payload.planId) { // Check for planId in payload, not req.body
           throw new Error("planId is required");
         }
-        const payment = new Payment({
-          mdOrder: response.data.orderId,
-          userId: payload.clientId,
-          orderNumber: payload.orderNumber,
-          amount: payload.amount,
-          planId: payload.planId,
-          email: payload.email,
-          fullName: payload.fullName,
-          description: payload.description,
-          status: "-1",
-          formURL: response.data.formURL,
-          bankResponse: response.data
-        });
-
-        const savedPayment = await payment.save();
-        console.log("Payment saved to MongoDB:", savedPayment._id);
+        const savedPayment = await Payment.findOneAndUpdate(
+          { userId: payload.clientId }, // find by bank order ID
+          {
+            $setOnInsert: {
+              userId: payload.clientId,
+              orderNumber: payload.orderNumber,
+              amount: payload.amount,
+              planId: payload.planId,
+              email: payload.email,
+              fullName: payload.fullName,
+              description: payload.description,
+              status: "-1",
+              formURL: response.data.formURL,
+              bankResponse: response.data,
+            }
+          },
+          { upsert: true, new: true } // insert if not exists
+        );
         
         // Optionally update user with current payment reference
-        if (payload.clientId) {
-          await Payment.findOneAndUpdate(
-            { userId: payload.clientId },
-            {
-              $push: { paymentHistory: savedPayment._id },
-              currentOrderId: response.data.orderId
-            }
-          );
-        }
+        // if (payload.clientId) {
+        //   await Payment.findOneAndUpdate(
+        //     { userId: payload.clientId },
+        //     {
+        //       $push: { paymentHistory: savedPayment._id },
+        //       currentOrderId: response.data.orderId
+        //     }
+        //   );
+        // }
         
       } catch (dbError) {
         console.error("Error saving payment to database:", dbError);
@@ -119,7 +121,7 @@ app.post("/api/payment/callback", async (req, res) => {
 
     // Update user based on payment result - use string userId
     if (status === "1") {
-      await User.findOneAndUpdate( // Use findOneAndUpdate instead of findByIdAndUpdate
+      await Payment.findOneAndUpdate( // Use findOneAndUpdate instead of findByIdAndUpdate
         { id: updatedPayment.userId }, // or whatever field matches your user ID
         {
           hasSelectedPlan: true,
@@ -129,7 +131,7 @@ app.post("/api/payment/callback", async (req, res) => {
       );
       console.log("User plan updated for successful payment");
     } else if (status === "0") {
-      await User.findOneAndUpdate(
+      await Payment.findOneAndUpdate(
         { id: updatedPayment.userId },
         {
           currentOrderId: null,
