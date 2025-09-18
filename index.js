@@ -60,7 +60,7 @@ app.post("/api/register", async (req, res) => {
           email: payload.email,
           fullName: payload.fullName,
           description: payload.description,
-          status: null,
+          status: "-1",
           formURL: response.data.formURL,
           bankResponse: response.data
         });
