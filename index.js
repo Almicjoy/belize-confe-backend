@@ -59,8 +59,8 @@ app.post("/api/payment/callback", async (req, res) => {
   try {
     // Save or update payment record
     await Payment.findOneAndUpdate(
-      { orderNumber }, // lookup by orderNumber
-      { mdOrder, operation, status },
+      { mdOrder }, // lookup by orderNumber
+      { mdOrder, operation, status, orderNumber },
       { upsert: true, new: true }
     );
 
@@ -73,9 +73,9 @@ app.post("/api/payment/callback", async (req, res) => {
 
 app.get("/api/payment/:orderNumber", async (req, res) => {
   try {
-    const { orderNumber } = req.params;
+    const { mdOrder } = req.params;
 
-    const payment = await Payment.findOne({ orderNumber });
+    const payment = await Payment.findOne({ mdOrder });
 
     if (!payment) {
       return res.status(404).json({ error: "Payment not found" });
