@@ -70,7 +70,7 @@ app.post("/api/register", async (req, res) => {
         
         // Optionally update user with current payment reference
         if (payload.clientId) {
-          await User.findByIdAndUpdate(payload.clientId, {
+          await Payment.findByIdAndUpdate(payload.clientId, {
             $push: { paymentHistory: savedPayment._id },
             currentOrderId: response.data.orderId
           });
