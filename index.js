@@ -4,6 +4,8 @@ import cors from "cors";
 import axios from "axios";
 import dotenv from "dotenv";
 import FormData from "form-data";
+import { connectDB } from "./db.js";
+import Payment from "./models/Payment.js";
 
 dotenv.config();
 
@@ -12,16 +14,8 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true })); // 👈 parse URL-encoded callbacks
 
-// Temporary in-memory "database" for demo
-const users = [
-  {
-    email: "test@example.com",
-    firstName: "Alessa",
-    lastName: "Castillo",
-    hasSelectedPlan: false,
-    selectedPlan: null,
-  },
-];
+connectDB();
+
 
 // Proxy route to register payment
 app.post("/api/register", async (req, res) => {
@@ -57,38 +51,41 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// Callback endpoint: bank calls this
-app.post("/api/payment/callback", (req, res) => {
-  // Bank callback comes as URL-encoded form data
+// Bank CALLBACK endpoint
+app.post("/api/payment/callback", async (req, res) => {
   const { mdOrder, orderNumber, operation, status } = req.body;
-  console.log("Payment Callback from Bank:", req.body);
+  console.log("Bank callback:", req.body);
 
-  // Example: find user by orderNumber (you may map orders to users in DB)
-  const user = users.find(u => u.email === req.body.email); // OR your order-user mapping
-  const planId = req.body.plan || 1; // you can pass this from frontend as dynamicCallbackUrl param
+  try {
+    // Save or update payment record
+    await Payment.findOneAndUpdate(
+      { orderNumber }, // lookup by orderNumber
+      { mdOrder, operation, status },
+      { upsert: true, new: true }
+    );
 
-  // if (!user) {
-  //   console.warn("User not found for callback!");
-  //   return res.status(404).send("User not found");
-  // }
-
-  let redirectUrl = "https://la-confe-bz.vercel.app/en/dashboard";
-
-  if (status === "1") {
-    // Payment success
-    // user.hasSelectedPlan = true;
-    // user.selectedPlan = planId;
-
-    // Redirect with success query params
-    redirectUrl += `?status=success&plan=${encodeURIComponent(planId)}&orderId=${mdOrder}&orderNumber=${orderNumber}`;
-  } else {
-    // Payment failure
-    const errorMsg = req.body.errorMessage || "Payment failed";
-    redirectUrl += `?status=failure&error=${encodeURIComponent(errorMsg)}`;
+    res.send("OK");
+  } catch (err) {
+    console.error("Error saving payment:", err);
+    res.status(500).send("DB Error");
   }
+});
 
-  // Redirect the user back to the dashboard
-  res.redirect(302, redirectUrl);
+app.get("/api/payment/:orderNumber", async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const payment = await Payment.findOne({ orderNumber });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    res.json(payment);
+  } catch (err) {
+    console.error("Error retrieving payment:", err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 const PORT = process.env.PORT || 4000;
