@@ -53,7 +53,7 @@ app.post("/api/register", async (req, res) => {
         }
         const payment = new Payment({
           mdOrder: response.data.orderId,
-          userId: payload.clientId, // This should be a valid MongoDB ObjectId
+          userId: payload.clientId,
           orderNumber: payload.orderNumber,
           amount: payload.amount,
           planId: payload.planId,
@@ -70,10 +70,13 @@ app.post("/api/register", async (req, res) => {
         
         // Optionally update user with current payment reference
         if (payload.clientId) {
-          await Payment.findByIdAndUpdate(payload.clientId, {
-            $push: { paymentHistory: savedPayment._id },
-            currentOrderId: response.data.orderId
-          });
+          await Payment.findOneAndUpdate(
+            { userId: payload.clientId },
+            {
+              $push: { paymentHistory: savedPayment._id },
+              currentOrderId: response.data.orderId
+            }
+          );
         }
         
       } catch (dbError) {
