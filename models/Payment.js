@@ -8,7 +8,7 @@ const paymentSchema = new mongoose.Schema({
     index: true // For faster queries
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: String,
     ref: 'User',
     required: true,
     index: true

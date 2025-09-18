@@ -44,12 +44,19 @@ app.post("/api/register", async (req, res) => {
         // Save to database if registration was successful
     if (response.data && response.data.orderId && !response.data.errorCode) {
       try {
+
+        if (!payload.clientId) {
+          throw new Error("clientId (userId) is required");
+        }
+        if (!payload.planId) { // Check for planId in payload, not req.body
+          throw new Error("planId is required");
+        }
         const payment = new Payment({
           mdOrder: response.data.orderId,
           userId: payload.clientId, // This should be a valid MongoDB ObjectId
           orderNumber: payload.orderNumber,
           amount: payload.amount,
-          planId: req.body.planId,
+          planId: payload.planId,
           email: payload.email,
           fullName: payload.fullName,
           description: payload.description,
@@ -91,17 +98,15 @@ app.post("/api/payment/callback", async (req, res) => {
   console.log("Bank callback:", req.body);
 
   try {
-    // Update only the callback-specific fields, preserve existing data
     const updatedPayment = await Payment.findOneAndUpdate(
       { mdOrder }, 
       { 
         operation, 
-        status: status || null, // Use status from callback, null if empty/undefined
-        callbackData: req.body, // Store full callback data
-        updatedAt: new Date(),
-        orderNumber
+        status: status || null,
+        callbackData: req.body,
+        updatedAt: new Date()
       },
-      { new: true } // Remove upsert to ensure record exists
+      { new: true }
     );
 
     if (!updatedPayment) {
@@ -109,24 +114,26 @@ app.post("/api/payment/callback", async (req, res) => {
       return res.status(404).send("Payment not found");
     }
 
-    // Update user based on payment result
+    // Update user based on payment result - use string userId
     if (status === "1") {
-      // Successful payment
-      await User.findByIdAndUpdate(updatedPayment.userId, {
-        hasSelectedPlan: true,
-        selectedPlan: updatedPayment.planId,
-        currentOrderId: null
-      });
+      await User.findOneAndUpdate( // Use findOneAndUpdate instead of findByIdAndUpdate
+        { id: updatedPayment.userId }, // or whatever field matches your user ID
+        {
+          hasSelectedPlan: true,
+          selectedPlan: updatedPayment.planId,
+          currentOrderId: null
+        }
+      );
       console.log("User plan updated for successful payment");
     } else if (status === "0") {
-      // Failed payment - clear any pending order, don't activate plan
-      await User.findByIdAndUpdate(updatedPayment.userId, {
-        currentOrderId: null,
-        // Keep hasSelectedPlan and selectedPlan unchanged (false/null)
-      });
+      await User.findOneAndUpdate(
+        { id: updatedPayment.userId },
+        {
+          currentOrderId: null,
+        }
+      );
       console.log("User order cleared for failed payment");
     }
-    // If status is blank/null/undefined, it's still pending - do nothing to user
 
     console.log("Payment updated successfully:", updatedPayment._id);
     res.send("OK");
