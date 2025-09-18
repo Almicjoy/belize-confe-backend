@@ -71,7 +71,7 @@ app.post("/api/payment/callback", async (req, res) => {
   }
 });
 
-app.get("/api/payment/:orderNumber", async (req, res) => {
+app.get("/api/payment/:mdOrder", async (req, res) => {
   try {
     const { mdOrder } = req.params;
 
