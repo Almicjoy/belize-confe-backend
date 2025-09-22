@@ -69,7 +69,8 @@ app.post("/api/register", async (req, res) => {
               paymentNumber: payload.paymentNumber,
               formURL: response.data.formURL,
               bankResponse: response.data,
-              promoCode: payload.promoCode
+              promoCode: payload.promoCode,
+              selectedRoom: payload.selectedRoom
             }
           },
           { upsert: true, new: true } // insert if not exists

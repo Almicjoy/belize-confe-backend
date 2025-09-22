@@ -46,6 +46,10 @@ const paymentSchema = new mongoose.Schema({
   promoCode: {
     type: String
   },
+  selectedRoom: {
+    type: String,
+    required: true
+  },
   formURL: {
     type: String
   },
