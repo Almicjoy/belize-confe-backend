@@ -9,7 +9,6 @@ const paymentSchema = new mongoose.Schema({
   },
   userId: {
     type: String,
-    unique: true,
     required: true
   },
   orderNumber: {
@@ -40,6 +39,13 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  paymentNumber: {
+    type: String,
+    required: true
+  },
+  promoCode: {
+    type: String
+  },
   formURL: {
     type: String
   },
@@ -55,7 +61,6 @@ const paymentSchema = new mongoose.Schema({
 
 // Index for efficient querying
 paymentSchema.index({ userId: 1, status: 1 });
-paymentSchema.index({ mdOrder: 1 });
 
 const Payment = mongoose.model('Payment', paymentSchema);
 

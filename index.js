@@ -3,9 +3,12 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import axios from "axios";
 import dotenv from "dotenv";
+import bcrypt from "bcrypt";
+import jwt from 'jsonwebtoken';
 import FormData from "form-data";
 import { connectDB } from "./db.js";
 import Payment from "./models/Payment.js";
+import User from "./models/User.js";  
 
 dotenv.config();
 
@@ -63,23 +66,14 @@ app.post("/api/register", async (req, res) => {
               fullName: payload.fullName,
               description: payload.description,
               status: "-1",
+              paymentNumber: payload.paymentNumber,
               formURL: response.data.formURL,
               bankResponse: response.data,
+              promoCode: payload.promoCode
             }
           },
           { upsert: true, new: true } // insert if not exists
         );
-        
-        // Optionally update user with current payment reference
-        // if (payload.clientId) {
-        //   await Payment.findOneAndUpdate(
-        //     { userId: payload.clientId },
-        //     {
-        //       $push: { paymentHistory: savedPayment._id },
-        //       currentOrderId: response.data.orderId
-        //     }
-        //   );
-        // }
         
       } catch (dbError) {
         console.error("Error saving payment to database:", dbError);
@@ -163,6 +157,108 @@ app.get("/api/payment", async (req, res) => {
   } catch (err) {
     console.error("Error retrieving payment:", err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.get("/api/user-payment", async (req, res) => {
+  try {
+    const email = req.query.email; // get email from query string
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Find payments for this email
+    const payments = await Payment.find({ email });
+
+    res.json({ payments });
+  } catch (err) {
+    console.error("Error fetching user payments:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+// Register user endpoint
+app.post("/api/user", async (req, res) => {
+  const { firstName, lastName, email, country, clubName, birthday, password } = req.body;
+
+  // Validate input
+  if (!firstName || !lastName || !email || !country || !clubName || !birthday || !password) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  try {
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create and save user
+    const newUser = new User({
+      firstName,
+      lastName,
+      email,
+      country,
+      clubName,
+      birthday,
+      password: hashedPassword,
+    });
+
+    await newUser.save();
+
+    return res.status(201).json({ message: "User registered successfully" });
+  } catch (error) {
+    console.error("Error registering user:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Login endpoint
+app.post("/api/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET || "supersecret",
+      { expiresIn: "1h" }
+    );
+
+    const userData = {
+      id: user._id.toString(),
+      email: user.email,
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      country: user.country || "",
+      clubName: user.clubName || "",
+      hasSelectedPlan: user.hasSelectedPlan || false,
+      selectedPlan: user.selectedPlan || "",
+      token
+    };
+
+    console.log("Sending user data:", userData); // DEBUG LOG
+    res.json(userData);
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
