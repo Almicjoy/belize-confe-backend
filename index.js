@@ -9,6 +9,7 @@ import FormData from "form-data";
 import { connectDB } from "./db.js";
 import Payment from "./models/Payment.js";
 import User from "./models/User.js";  
+import Room from "./models/Room.js";
 
 dotenv.config();
 
@@ -54,27 +55,34 @@ app.post("/api/register", async (req, res) => {
         if (!payload.planId) { // Check for planId in payload, not req.body
           throw new Error("planId is required");
         }
-        const savedPayment = await Payment.findOneAndUpdate(
-          { userId: payload.clientId }, // find by bank order ID
-          {
-            $setOnInsert: {
-              userId: payload.clientId,
-              orderNumber: payload.orderNumber,
-              amount: payload.amount,
-              planId: payload.planId,
-              email: payload.email,
-              fullName: payload.fullName,
-              description: payload.description,
-              status: "-1",
-              paymentNumber: payload.paymentNumber,
-              formURL: response.data.formURL,
-              bankResponse: response.data,
-              promoCode: payload.promoCode,
-              selectedRoom: payload.selectedRoom
-            }
-          },
-          { upsert: true, new: true } // insert if not exists
-        );
+        const savedPayment = await Payment.create({
+          mdOrder: response.data.orderId,
+          userId: payload.clientId,
+          orderNumber: payload.orderNumber,
+          amount: payload.amount,
+          planId: payload.planId,
+          email: payload.email,
+          fullName: payload.fullName,
+          description: payload.description,
+          status: "-1",
+          paymentNumber: payload.paymentNumber,
+          formURL: response.data.formURL,
+          bankResponse: response.data,
+          promoCode: payload.promoCode,
+          selectedRoom: payload.selectedRoom
+        });
+
+        if (payload.selectedRoom) {
+          // Find by room name instead of ID
+          const room = await Room.findOne({ name: payload.selectedRoom });
+          if (room) {
+            room.available = Math.max(0, (room.available || 0) - 1); // avoid negative values
+            await room.save();
+            console.log(`Room ${room.name} availability decreased to ${room.available}`);
+          } else {
+            console.warn(`Room with name "${payload.selectedRoom}" not found.`);
+          }
+        }
         
       } catch (dbError) {
         console.error("Error saving payment to database:", dbError);
@@ -260,6 +268,16 @@ app.post("/api/login", async (req, res) => {
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/rooms", async (req, res) => {
+  try {
+    const rooms = await Room.find({});
+    res.json({ success: true, data: rooms });
+  } catch (error) {
+    console.error("Error fetching rooms:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch rooms" });
   }
 });
 
