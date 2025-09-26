@@ -74,7 +74,7 @@ app.post("/api/register", async (req, res) => {
 
         if (payload.selectedRoom) {
           // Find by room name instead of ID
-          const room = await Room.findOne({ name: payload.selectedRoom });
+          const room = await Room.findOne({ id: payload.selectedRoom });
           if (room) {
             room.available = Math.max(0, (room.available || 0) - 1); // avoid negative values
             await room.save();
