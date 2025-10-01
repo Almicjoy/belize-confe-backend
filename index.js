@@ -281,5 +281,61 @@ app.get("/rooms", async (req, res) => {
   }
 });
 
+// Get next payment due for a user
+app.get("/api/payments/next-due/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find the first (earliest) successful payment for this user
+    const firstPayment = await Payment.findOne({ userId, status: "1" }).sort({
+      createdAt: 1,
+    });
+
+    if (!firstPayment) {
+      return res
+        .status(404)
+        .json({ error: "No successful payments found for this user" });
+    }
+
+    // Get all successful payments count
+    const successfulPaymentsCount = await Payment.countDocuments({
+      userId,
+      status: "1",
+    });
+
+    // You need plan installments (assuming planId is stored in payment)
+    // For simplicity, store total installments in Payment or fetch from another collection
+    const totalInstallments = Number(firstPayment.planId); // fallback to 3
+
+    if (successfulPaymentsCount >= totalInstallments) {
+      return res.json({ message: "All installments are already paid" });
+    }
+
+    // Anchor date = date of first payment
+    const firstDate = new Date(firstPayment.createdAt);
+
+    // Next installment index (0-based), so +1 for "next one"
+    const nextInstallmentIndex = successfulPaymentsCount;
+
+    // Calculate due date = last day of the month (firstDate + nextInstallmentIndex months)
+    const nextDueDate = new Date(
+      firstDate.getFullYear(),
+      firstDate.getMonth() + 1 + nextInstallmentIndex,
+      0 // day 0 → last day of previous month
+    );
+
+    res.json({
+      nextDueDate: nextDueDate.toISOString().split("T")[0],
+      installmentNumber: nextInstallmentIndex + 1,
+      totalInstallments,
+      remaining: totalInstallments - successfulPaymentsCount,
+    });
+  } catch (err) {
+    console.error("Error calculating next due payment:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
