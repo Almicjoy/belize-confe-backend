@@ -12,8 +12,13 @@ const userSchema = new Schema(
     clubName: { type: String, required: true },
     birthday: { type: Date, required: true },
     password: { type: String, required: true },
+
+    // Password reset fields
+    resetToken: { type: String },          // the random token
+    resetTokenExpiry: { type: Date },      // token expiration time
   },
   { timestamps: true }
 );
+
 
 export default models.User || model("User", userSchema);

@@ -11,7 +11,8 @@ import Payment from "./models/Payment.js";
 import User from "./models/User.js";  
 import Room from "./models/Room.js";
 import Promo from "./models/Promo.js";
-
+import crypto from "crypto";
+import sendEmail from "./utils/sendEmail.js";
 
 dotenv.config();
 
@@ -299,6 +300,82 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+app.post("/api/auth/request-reset", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Security measure — don't reveal user existence
+      return res.status(200).json({ message: "Reset link sent if account exists" });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + 1000 * 60 * 15; // 15 min
+
+    user.resetToken = token;
+    user.resetTokenExpiry = expiresAt;
+
+    await user.save();
+
+    const resetURL = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    await sendEmail({
+      to: email,
+      subject: "Password Reset Request",
+      html: `
+        <p>You requested a password reset.</p>
+        <p>Click below to reset:</p>
+        <a href="${resetURL}">${resetURL}</a>
+      `
+    });
+
+    return res.json({ message: "Reset link sent" });
+
+  } catch (err) {
+    console.error("Error sending reset link:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || !password)
+    return res.status(400).json({ message: "Missing fields" });
+
+  try {
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    user.password = hashedPassword;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+
+    await user.save();
+
+    return res.json({ message: "Password updated successfully" });
+
+  } catch (err) {
+    console.error("Password reset error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 
 app.get("/rooms", async (req, res) => {
   try {
