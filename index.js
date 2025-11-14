@@ -10,6 +10,8 @@ import { connectDB } from "./db.js";
 import Payment from "./models/Payment.js";
 import User from "./models/User.js";  
 import Room from "./models/Room.js";
+import Promo from "./models/Promo.js";
+
 
 dotenv.config();
 
@@ -71,18 +73,6 @@ app.post("/api/register", async (req, res) => {
           promoCode: payload.promoCode,
           selectedRoom: payload.selectedRoom
         });
-
-        if (payload.selectedRoom) {
-          // Find by room name instead of ID
-          const room = await Room.findOne({ id: payload.selectedRoom });
-          if (room) {
-            room.available = Math.max(0, (room.available || 0) - 1); // avoid negative values
-            await room.save();
-            console.log(`Room ${room.name} availability decreased to ${room.available}`);
-          } else {
-            console.warn(`Room with name "${payload.selectedRoom}" not found.`);
-          }
-        }
         
       } catch (dbError) {
         console.error("Error saving payment to database:", dbError);
@@ -107,9 +97,9 @@ app.post("/api/payment/callback", async (req, res) => {
 
   try {
     const updatedPayment = await Payment.findOneAndUpdate(
-      { mdOrder }, 
-      { 
-        operation, 
+      { mdOrder },
+      {
+        operation,
         status: status || null,
         callbackData: req.body,
         updatedAt: new Date()
@@ -122,34 +112,73 @@ app.post("/api/payment/callback", async (req, res) => {
       return res.status(404).send("Payment not found");
     }
 
-    // Update user based on payment result - use string userId
+    // ------------------------------------------------------------------
+    // SUCCESSFUL PAYMENT
+    // ------------------------------------------------------------------
     if (status === "1") {
-      await Payment.findOneAndUpdate( // Use findOneAndUpdate instead of findByIdAndUpdate
-        { id: updatedPayment.userId }, // or whatever field matches your user ID
+
+      // 1. Decrease promo usage
+      if (updatedPayment.promoCode) {
+        await Promo.findOneAndUpdate(
+          { code: updatedPayment.promoCode },
+          { $inc: { amount: -1 } }
+        );
+        console.log("Promo usage reduced by 1");
+      }
+
+      // 2. Decrease room count + update availability
+      const room = await Room.findOne({ id: updatedPayment.selectedRoom });
+
+      if (room) {
+        const newCount = Math.max(room.count - 1, 0);
+
+        await Room.findOneAndUpdate(
+          { id: updatedPayment.selectedRoom },
+          {
+            count: newCount,
+            available: newCount > 0 ? "yes" : "no"
+          }
+        );
+
+        console.log("Room count reduced. New count:", newCount);
+      } else {
+        console.log("Room not found for room id:", updatedPayment.selectedRoom);
+      }
+
+      // 3. Update user plan
+      await User.findOneAndUpdate(
+        { id: updatedPayment.userId },
         {
           hasSelectedPlan: true,
           selectedPlan: updatedPayment.planId,
           currentOrderId: null
         }
       );
+
       console.log("User plan updated for successful payment");
-    } else if (status === "0") {
-      await Payment.findOneAndUpdate(
+    }
+
+    // ------------------------------------------------------------------
+    // FAILED PAYMENT
+    // ------------------------------------------------------------------
+    else if (status === "0") {
+      await User.findOneAndUpdate(
         { id: updatedPayment.userId },
-        {
-          currentOrderId: null,
-        }
+        { currentOrderId: null }
       );
+
       console.log("User order cleared for failed payment");
     }
 
     console.log("Payment updated successfully:", updatedPayment._id);
     res.send("OK");
+
   } catch (err) {
     console.error("Error saving payment:", err);
     res.status(500).send("DB Error");
   }
 });
+
 
 app.get("/api/payment", async (req, res) => {
   try {
@@ -335,6 +364,29 @@ app.get("/api/payments/next-due/:userId", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+// Get promo by code
+app.get("/api/promo", async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({ error: "Promo code is required" });
+    }
+
+    const promo = await Promo.findOne({ code: code.toUpperCase() }); // make code case-insensitive
+
+    if (!promo) {
+      return res.status(404).json({ error: "Promo not found" });
+    }
+
+    res.json(promo);
+  } catch (err) {
+    console.error("Error retrieving promo:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 
 const PORT = process.env.PORT || 4000;
