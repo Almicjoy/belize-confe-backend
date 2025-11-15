@@ -1,4 +1,6 @@
 import express from "express";
+import path from "path";
+import fs from "fs";
 import bodyParser from "body-parser";
 import cors from "cors";
 import axios from "axios";
@@ -13,6 +15,8 @@ import Room from "./models/Room.js";
 import Promo from "./models/Promo.js";
 import crypto from "crypto";
 import sendEmail from "./utils/sendEmail.js";
+import registrationEmailEN from "./emails/registration_en.js";
+import registrationEmailES from "./emails/registration_es.js";
 
 dotenv.config();
 
@@ -72,7 +76,8 @@ app.post("/api/register", async (req, res) => {
           formURL: response.data.formURL,
           bankResponse: response.data,
           promoCode: payload.promoCode,
-          selectedRoom: payload.selectedRoom
+          selectedRoom: payload.selectedRoom,
+          locale: payload.locale,
         });
         
       } catch (dbError) {
@@ -147,7 +152,7 @@ app.post("/api/payment/callback", async (req, res) => {
       }
 
       // 3. Update user plan
-      await User.findOneAndUpdate(
+      const user = await User.findOneAndUpdate(
         { id: updatedPayment.userId },
         {
           hasSelectedPlan: true,
@@ -156,7 +161,16 @@ app.post("/api/payment/callback", async (req, res) => {
         }
       );
 
-      console.log("User plan updated for successful payment");
+      // 4. Send payment confirmation email
+      if (user && room) {
+        const locale = updatedPayment.locale || "en";
+        const emailTemplate = locale === "es" 
+          ? paymentConfirmationES(updatedPayment, user, room)
+          : paymentConfirmationEN(updatedPayment, user, room);
+
+        await sendEmail({ to: user.email, subject: emailTemplate.subject, html: emailTemplate.html, attachments: emailTemplate.attachments });
+        console.log("Payment confirmation email sent.");
+      }
     }
 
     // ------------------------------------------------------------------
@@ -218,27 +232,22 @@ app.get("/api/user-payment", async (req, res) => {
 });
 
 
-// Register user endpoint
 app.post("/api/user", async (req, res) => {
-  const { firstName, lastName, email, country, clubName, birthday, password } = req.body;
+  const { firstName, lastName, email, country, clubName, birthday, password, locale } = req.body;
 
-  // Validate input
   if (!firstName || !lastName || !email || !country || !clubName || !birthday || !password) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
   try {
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create and save user
     const newUser = new User({
       firstName,
       lastName,
@@ -251,7 +260,52 @@ app.post("/api/user", async (req, res) => {
 
     await newUser.save();
 
+    // -----------------------------------------------------------
+    // Select the correct email template
+    // -----------------------------------------------------------
+    const emailContent =
+      locale === "es"
+        ? registrationEmailES(firstName) // returns { subject, html }
+        : registrationEmailEN(firstName);
+
+    // -----------------------------------------------------------
+    // Select correct PDF file
+    // -----------------------------------------------------------
+    console.log(locale)
+    const pdfFilename = locale === "es"
+      ? "LaConfe_Info_ES.pdf"
+      : "LaConfe_Info_EN.pdf";
+
+    const pdfPath = path.join(process.cwd(), "public", pdfFilename);
+    
+    // ✅ ADD: Verify the file exists before attempting to send
+    if (!fs.existsSync(pdfPath)) {
+      console.error(`PDF file not found: ${pdfPath}`);
+      return res.status(500).json({ message: "PDF file not found" });
+    }
+
+    console.log("PDF path:", pdfPath);
+    console.log("PDF exists:", fs.existsSync(pdfPath));
+
+    const allAttachments = [
+      ...emailContent.attachments, // logo.png with cid
+      {
+        filename: pdfFilename,
+        path: pdfPath,
+        contentType: "application/pdf",
+      },
+    ];
+
+    // ✅ Send email with combined attachments
+    await sendEmail({
+      to: email,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      attachments: allAttachments,  // ← Explicitly pass as 'attachments'
+    });
+
     return res.status(201).json({ message: "User registered successfully" });
+
   } catch (error) {
     console.error("Error registering user:", error);
     return res.status(500).json({ message: "Server error" });
@@ -302,15 +356,14 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/auth/request-reset", async (req, res) => {
-  const { email } = req.body;
+  const { email, locale } = req.body; // include locale
 
-  if (!email) return res.status(400).json({ message: "Email is required" });
+  if (!email) return res.status(400).json({ message: locale === "es" ? "Se requiere correo electrónico" : "Email is required" });
 
   try {
     const user = await User.findOne({ email });
     if (!user) {
-      // Security measure — don't reveal user existence
-      return res.status(200).json({ message: "Reset link sent if account exists" });
+      return res.status(200).json({ message: locale === "es" ? "Se ha enviado un enlace de restablecimiento si la cuenta existe" : "Reset link sent if account exists" });
     }
 
     const token = crypto.randomBytes(32).toString("hex");
@@ -318,28 +371,37 @@ app.post("/api/auth/request-reset", async (req, res) => {
 
     user.resetToken = token;
     user.resetTokenExpiry = expiresAt;
-
     await user.save();
 
-    const resetURL = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const resetURL = `${process.env.FRONTEND_URL}/${locale}/reset-password?token=${token}`;
 
-    await sendEmail({
-      to: email,
-      subject: "Password Reset Request",
-      html: `
+    // Prepare email based on locale
+    const emailHtml = locale === "es"
+      ? `
+        <p>Has solicitado un restablecimiento de contraseña.</p>
+        <p>Haz clic en el enlace para restablecerla:</p>
+        <a href="${resetURL}">${resetURL}</a>
+      `
+      : `
         <p>You requested a password reset.</p>
         <p>Click below to reset:</p>
         <a href="${resetURL}">${resetURL}</a>
-      `
+      `;
+
+    await sendEmail({
+      to: email,
+      subject: locale === "es" ? "Solicitud de restablecimiento de contraseña" : "Password Reset Request",
+      html: emailHtml,
     });
 
-    return res.json({ message: "Reset link sent" });
+    return res.json({ message: locale === "es" ? "Se ha enviado un enlace de restablecimiento" : "Reset link sent" });
 
   } catch (err) {
     console.error("Error sending reset link:", err);
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: locale === "es" ? "Error del servidor" : "Server error" });
   }
 });
+
 
 app.post("/api/auth/reset-password", async (req, res) => {
   const { token, password } = req.body;

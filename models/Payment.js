@@ -50,6 +50,10 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  locale: {
+    type: String,
+    required: true
+  },
   formURL: {
     type: String
   },
