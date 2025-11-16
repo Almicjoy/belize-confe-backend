@@ -153,7 +153,7 @@ app.post("/api/payment/callback", async (req, res) => {
 
       // 3. Update user plan
       const user = await User.findOneAndUpdate(
-        { id: updatedPayment.userId },
+        { email: updatedPayment.email },
         {
           hasSelectedPlan: true,
           selectedPlan: updatedPayment.planId,
@@ -178,7 +178,7 @@ app.post("/api/payment/callback", async (req, res) => {
     // ------------------------------------------------------------------
     else if (status === "0") {
       await User.findOneAndUpdate(
-        { id: updatedPayment.userId },
+        { email: updatedPayment.email },
         { currentOrderId: null }
       );
 
