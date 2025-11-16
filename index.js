@@ -17,6 +17,8 @@ import crypto from "crypto";
 import sendEmail from "./utils/sendEmail.js";
 import registrationEmailEN from "./emails/registration_en.js";
 import registrationEmailES from "./emails/registration_es.js";
+import { paymentConfirmationEN } from "./emails/paymentConfirmation.js";
+import { paymentConfirmationES } from "./emails/paymentConfirmation.js";
 
 dotenv.config();
 
@@ -503,6 +505,52 @@ app.get("/api/payments/next-due/:userId", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+app.get("/api/payments/send-reminders", async (req, res) => {
+  try {
+    // Get users who have at least **1 successful payment**
+    const usersWithPayments = await Payment.distinct("email", { status: "1" });
+
+    if (usersWithPayments.length === 0) {
+      return res.json({ message: "No users with active payments" });
+    }
+
+    const today = new Date();
+    const day = today.getDate();
+    const year = today.getFullYear();
+    const month = today.getMonth(); // 0–11
+
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+
+    const isBeginning = day === 1;
+    const isMiddle = day === 15;
+    const isBeforeEnd = day === lastDayOfMonth - 2;
+
+    if (!isBeginning && !isMiddle && !isBeforeEnd) {
+      return res.json({ message: "Not a reminder day – no emails sent." });
+    }
+
+    let emailCount = 0;
+
+    for (const email of usersWithPayments) {
+      const user = await User.findOne(email);
+      if (!user) continue;
+
+      const sent = await processUserPaymentReminder(user, { isBeginning, isMiddle, isBeforeEnd });
+      if (sent) emailCount++;
+    }
+
+    res.json({
+      message: "Reminder process executed",
+      emailsSent: emailCount,
+    });
+
+  } catch (err) {
+    console.error("Error sending reminders:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 // Get promo by code
 app.get("/api/promo", async (req, res) => {
