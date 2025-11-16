@@ -574,6 +574,105 @@ app.get("/api/promo", async (req, res) => {
   }
 });
 
+// Dashboard API - get all registrants with full payment info
+app.get("/api/dashboard/registrants", async (req, res) => {
+  try {
+    // Fetch all users
+    const users = await User.find({}).lean();
+
+    // Fetch successful payments only
+    const payments = await Payment.find({ status: "1" }).lean();
+
+    // Fetch all rooms
+    const rooms = await Room.find({}).lean();
+
+    // Map rooms by ID for fast lookup
+    const roomMap = {};
+    rooms.forEach(r => {
+      roomMap[r.id] = r;
+    });
+
+    // Group successful payments by userId
+    const paymentsByUser = {};
+    payments.forEach(p => {
+      if (!paymentsByUser[p.userId]) paymentsByUser[p.userId] = [];
+      paymentsByUser[p.userId].push(p);
+    });
+
+    const dashboardData = users.map(user => {
+      const userId = user._id.toString();
+
+      // All successful payments for this user
+      const userPayments = paymentsByUser[userId] || [];
+
+      // Sort by date to find first/last payments
+      const sortedPayments = [...userPayments].sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
+
+      const firstPayment = sortedPayments[0] || null;
+      const lastPayment = sortedPayments[sortedPayments.length - 1] || null;
+
+      // Resolve room (based on selectedRoom from firstPayment)
+      let room = null;
+      if (firstPayment?.selectedRoom && roomMap[firstPayment.selectedRoom]) {
+        room = roomMap[firstPayment.selectedRoom];
+      }
+
+      const roomName = room?.name || null;
+      const roomPrice = room?.price ?? null;
+
+      const promoCode = firstPayment?.promoCode || null;
+
+      // Full price (only from room)
+      const fullPrice = roomPrice ?? null;
+
+      // Apply 5% discount if a promo code exists
+      const fullPriceAfterDiscount =
+        promoCode && roomPrice
+          ? Number((roomPrice * 0.95).toFixed(2))
+          : null;
+
+      // Total amount paid so far
+      const totalPaid = userPayments.length
+        ? userPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        : null;
+
+      // Age calculation
+      const age = user.birthday
+        ? Math.floor((Date.now() - new Date(user.birthday)) / (365.25 * 24 * 60 * 60 * 1000))
+        : null;
+
+      return {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        country: user.country,
+        club: user.clubName,
+        age,
+
+        roomName,
+        paymentPlanId: firstPayment?.planId || null,
+        numberOfPayments: userPayments.length || null,
+        amountPaid: totalPaid,
+        fullPrice,
+        fullPriceAfterDiscount,
+        promoCode,
+
+        dateRegistered: user.createdAt || null,
+        firstPaymentDate: firstPayment?.createdAt || null,
+        lastPaymentDate: lastPayment?.createdAt || null,
+      };
+    });
+
+    res.json({ success: true, data: dashboardData });
+  } catch (err) {
+    console.error("Dashboard error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+
 
 
 const PORT = process.env.PORT || 4000;

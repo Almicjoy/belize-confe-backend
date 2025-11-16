@@ -15,14 +15,14 @@ export function paymentConfirmationEN(payment, user, room) {
     : null;
 
   return {
-    subject: `Payment Confirmation - LaConfe26`,
+    subject: `Payment Confirmation - LaConfe30`,
     html: `
         <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.5; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="cid:logo" alt="La Confe 26" style="width: 150px; height: auto;" />
+          <img src="cid:logo" alt="La Confe 30" style="width: 150px; height: auto;" />
         </div>
         <h2 style="color:#213cd2ff;">Hello ${user.firstName},</h2>
-        <p>Thank you for your payment for LaConfe26. Here is your receipt:</p>
+        <p>Thank you for your payment for LaConfe30. Here is your receipt:</p>
 
         <table style="width:100%; border-collapse: collapse; margin-top:20px;">
           <tr style="background:#f3f3f3;">
@@ -51,7 +51,7 @@ export function paymentConfirmationEN(payment, user, room) {
         <p>Payment Plan: ${payment.planId} installment(s)</p>
         <p>If you have any questions, please contact our support team.</p>
 
-        <p>Best regards,<br/>LaConfe26 Organizing Committee</p>
+        <p>Best regards,<br/>LaConfe30 Organizing Committee</p>
       </div>
     `,
     attachments: [
@@ -77,14 +77,14 @@ export function paymentConfirmationES(payment, user, room) {
     : null;
 
   return {
-    subject: `Confirmación de Pago - LaConfe26`,
+    subject: `Confirmación de Pago - LaConfe30`,
     html: `
         <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.5; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="cid:logo" alt="La Confe 26" style="width: 150px; height: auto;" />
+          <img src="cid:logo" alt="La Confe 30" style="width: 150px; height: auto;" />
         </div>
         <h2 style="color:#213cd2ff;">Hola ${user.firstName},</h2>
-        <p>Gracias por tu pago para LaConfe26. Aquí tienes tu recibo:</p>
+        <p>Gracias por tu pago para LaConfe30. Aquí tienes tu recibo:</p>
 
         <table style="width:100%; border-collapse: collapse; margin-top:20px;">
           <tr style="background:#f3f3f3;">
@@ -113,7 +113,7 @@ export function paymentConfirmationES(payment, user, room) {
         <p>Plan de Pago: ${payment.planId} cuota(s)</p>
         <p>Si tienes alguna pregunta, por favor contacta a nuestro equipo de soporte.</p>
 
-        <p>Saludos cordiales,<br/>Comité Organizador de LaConfe26</p>
+        <p>Saludos cordiales,<br/>Comité Organizador de LaConfe30</p>
       </div>
     `,
     attachments: [

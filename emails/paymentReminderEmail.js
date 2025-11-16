@@ -2,16 +2,16 @@ function paymentReminderEmailEN(user, dueDate) {
   const formatted = dueDate.toLocaleDateString("en-US");
 
   return {
-    subject: "Upcoming Payment Reminder - LaConfe26",
+    subject: "Upcoming Payment Reminder - LaConfe30",
     html: `
       <div style="font-family: Arial; color:#333; max-width:600px; margin:auto; padding:20px; border:1px solid #ddd; border-radius:8px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="cid:logo" alt="La Confe 26" style="width: 150px; height: auto;" />
+          <img src="cid:logo" alt="La Confe 30" style="width: 150px; height: auto;" />
         </div>
 
         <h2 style="color:#213cd2ff;">Hello ${user.firstName},</h2>
 
-        <p>This is a reminder that your next installment payment for LaConfe26 is due soon.</p>
+        <p>This is a reminder that your next installment payment for LaConfe30 is due soon.</p>
 
         <p><strong>Due Date:</strong> ${formatted} (End of the month)</p>
 
@@ -26,7 +26,7 @@ function paymentReminderEmailEN(user, dueDate) {
 
         <p>If you have already made this payment, please disregard this message.</p>
 
-        <p>Best regards,<br/>LaConfe26 Organizing Committee</p>
+        <p>Best regards,<br/>LaConfe30 Organizing Committee</p>
       </div>
     `
   };
@@ -36,16 +36,16 @@ function paymentReminderEmailES(user, dueDate) {
   const formatted = dueDate.toLocaleDateString("es-ES");
 
   return {
-    subject: "Recordatorio de Pago Próximo - LaConfe26",
+    subject: "Recordatorio de Pago Próximo - LaConfe30",
     html: `
       <div style="font-family: Arial; color:#333; max-width:600px; margin:auto; padding:20px; border:1px solid #ddd; border-radius:8px;">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="cid:logo" alt="La Confe 26" style="width: 150px; height: auto;" />
+          <img src="cid:logo" alt="La Confe 30" style="width: 150px; height: auto;" />
         </div>
 
         <h2 style="color:#213cd2ff;">Hola ${user.firstName},</h2>
 
-        <p>Este es un recordatorio de que tu próxima cuota de pago para LaConfe26 vence pronto.</p>
+        <p>Este es un recordatorio de que tu próxima cuota de pago para LaConfe30 vence pronto.</p>
 
         <p><strong>Fecha de Vencimiento:</strong> ${formatted} (Fin de mes)</p>
 
@@ -60,7 +60,7 @@ function paymentReminderEmailES(user, dueDate) {
 
         <p>Si ya realizaste este pago, por favor ignora este mensaje.</p>
 
-        <p>Saludos cordiales,<br/>Comité Organizador de LaConfe26</p>
+        <p>Saludos cordiales,<br/>Comité Organizador de LaConfe30</p>
       </div>
     `
   };
