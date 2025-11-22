@@ -20,6 +20,18 @@ import registrationEmailES from "./emails/registration_es.js";
 import { paymentConfirmationEN } from "./emails/paymentConfirmation.js";
 import { paymentConfirmationES } from "./emails/paymentConfirmation.js";
 
+const bankFields = [
+  "userName",
+  "password",
+  "amount",
+  "returnUrl",
+  "description",
+  "orderNumber",
+  "dynamicCallbackUrl",
+  "clientID",
+  "email"
+];
+
 dotenv.config();
 
 const app = express();
@@ -33,6 +45,7 @@ connectDB();
 // Proxy route to register payment
 app.post("/api/register", async (req, res) => {
   try {
+    // ----- 1. Merge in bank credentials -----
     const payload = {
       userName: process.env.PAYMENT_USERNAME,
       password: process.env.PAYMENT_PASSWORD,
@@ -41,17 +54,47 @@ app.post("/api/register", async (req, res) => {
 
     console.log("Merged payload:", payload);
 
-    const formData = new FormData();
-    Object.entries(payload).forEach(([key, value]) => {
-      formData.append(key, String(value ?? ""));
+    // ----- 2. List of fields allowed by Belize Bank -----
+    const bankFields = [
+      "userName",
+      "password",
+      "amount",
+      "returnUrl",
+      "description",
+      "orderNumber",
+      "dynamicCallbackUrl",
+      "clientID",   // must be capital ID
+      "email",    // optional
+    ];
+
+    // ----- 3. Build bank payload only with whitelisted fields -----
+    const bankPayload = {};
+
+    bankFields.forEach((field) => {
+      if (payload[field] !== undefined && payload[field] !== null) {
+        bankPayload[field] = String(payload[field]);
+      }
     });
 
+    // Convert your internal clientId → bank clientID
+    if (payload.clientId) {
+      bankPayload.clientID = String(payload.clientId);
+    }
+
+    // ----- 4. Build FormData manually with ONLY valid fields -----
+    const formData = new FormData();
+    Object.entries(bankPayload).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    // Debug: Show exactly what is being sent
+    console.log("Bank Payload Sent:", bankPayload);
+
+    // ----- 5. Send request to Belize Bank -----
     const response = await axios.post(
       `${process.env.PAYMENT_URL}/register.do`,
       formData,
-      {
-        headers: formData.getHeaders(),
-      }
+      { headers: formData.getHeaders() }
     );
 
         // Save to database if registration was successful
