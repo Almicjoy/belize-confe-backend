@@ -47,7 +47,7 @@ app.post("/api/register", async (req, res) => {
     });
 
     const response = await axios.post(
-      "https://sandbox.belizebank.com/payment/rest/register.do",
+      `${process.env.PAYMENT_URL}/register.do`,
       formData,
       {
         headers: formData.getHeaders(),
