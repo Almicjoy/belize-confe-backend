@@ -59,7 +59,7 @@ app.post("/api/register", async (req, res) => {
       "userName",
       "password",
       "amount",
-      "returnURL",
+      "returnUrl",
       "description",
       "orderNumber",
       "dynamicCallbackUrl",
@@ -80,9 +80,9 @@ app.post("/api/register", async (req, res) => {
     if (payload.clientId) {
       bankPayload.clientID = String(payload.clientId);
     }
-    if (payload.returnUrl) {
-      bankPayload.returnURL = String(payload.returnUrl);
-    }
+    // if (payload.returnUrl) {
+    //   bankPayload.returnURL = String(payload.returnUrl);
+    // }
 
     // ----- 4. Build FormData manually with ONLY valid fields -----
     const formData = new FormData();
