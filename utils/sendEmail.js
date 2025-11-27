@@ -10,7 +10,7 @@ export default async function sendEmail({ to, subject, html, attachments = [] })
   });
 
   await transporter.sendMail({
-    from: `"LaConfe26" <${process.env.EMAIL_USER}>`,
+    from: `"LaConfe30" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     html,
