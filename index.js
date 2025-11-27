@@ -281,9 +281,9 @@ app.get("/api/user-payment", async (req, res) => {
 
 
 app.post("/api/user", async (req, res) => {
-  const { firstName, lastName, email, country, clubName, birthday, password, locale } = req.body;
+  const { firstName, lastName, email, phone, countryCode, country, clubName, birthday, password, locale } = req.body;
 
-  if (!firstName || !lastName || !email || !country || !clubName || !birthday || !password) {
+  if (!firstName || !lastName || !email || !phone || !countryCode || !country || !clubName || !birthday || !password) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
@@ -300,6 +300,8 @@ app.post("/api/user", async (req, res) => {
       firstName,
       lastName,
       email,
+      phone,
+      countryCode,
       country,
       clubName,
       birthday,
