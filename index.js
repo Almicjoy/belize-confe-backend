@@ -172,12 +172,17 @@ app.post("/api/payment/callback", async (req, res) => {
     if (status === "1") {
 
       // 1. Decrease promo usage
-      if (updatedPayment.promoCode) {
+      if (updatedPayment.promoCode && updatedPayment.reservationId) {
         await Promo.findOneAndUpdate(
-          { code: updatedPayment.promoCode },
-          { $inc: { amount: -1 } }
+          {
+            code: updatedPayment.promoCode,
+            "reservations.id": updatedPayment.reservationId
+          },
+          {
+            $set: { "reservations.$.status": "used" }
+          }
         );
-        console.log("Promo usage reduced by 1");
+        console.log("Promo reservation marked as used");
       }
 
       // 2. Decrease room count + update availability
@@ -618,6 +623,86 @@ app.get("/api/promo", async (req, res) => {
     res.json(promo);
   } catch (err) {
     console.error("Error retrieving promo:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+async function releaseExpiredReservation(code, reservationId) {
+  return Promo.findOneAndUpdate(
+    {
+      code,
+      "reservations.id": reservationId,
+      "reservations.status": "reserved"
+    },
+    {
+      $inc: { amount: 1 },
+      $set: { "reservations.$.status": "expired" }
+    }
+  );
+}
+
+app.post("/api/promo/reserve", async (req, res) => {
+  try {
+    const { code, userId, roomType } = req.body;
+
+    if (!code || !userId) {
+      return res.status(400).json({ error: "Code and userId are required" });
+    }
+
+    const now = new Date();
+    const reservationId = `${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Atomic operation: reserve promo if available
+    const promo = await Promo.findOneAndUpdate(
+      {
+        code: code.toUpperCase(),
+        amount: { $gt: 0 },
+        date_active: { $lte: now },
+        // Optionally verify room_type match
+        ...(roomType && { $or: [{ room_type: String(roomType) }, { room_type: null }, { room_type: '' }] })
+      },
+      {
+        $inc: { amount: -1 },
+        $push: {
+          reservations: {
+            id: reservationId,
+            userId: userId,
+            timestamp: now,
+            status: 'reserved'
+          }
+        }
+      },
+      { new: true }
+    );
+
+    if (!promo) {
+      return res.status(404).json({ 
+        error: "Promo unavailable",
+        details: "Promo code is invalid, expired, out of stock, or not valid for selected room"
+      });
+    }
+
+    // Set expiration cleanup (15 minutes)
+    setTimeout(async () => {
+      try {
+        await releaseExpiredReservation(code.toUpperCase(), reservationId);
+      } catch (err) {
+        console.error("Failed to release expired reservation:", err);
+      }
+    }, 15 * 60 * 1000);
+
+    res.json({
+      success: true,
+      reservationId,
+      promo: {
+        code: promo.code,
+        discount: promo.discount,
+        expiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString()
+      }
+    });
+
+  } catch (err) {
+    console.error("Error reserving promo:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

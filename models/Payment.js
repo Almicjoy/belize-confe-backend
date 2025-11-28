@@ -43,6 +43,9 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  reservationId: {
+    type: String
+  },
   promoCode: {
     type: String
   },
