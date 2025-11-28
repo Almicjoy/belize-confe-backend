@@ -124,6 +124,7 @@ app.post("/api/register", async (req, res) => {
           formURL: response.data.formURL,
           bankResponse: response.data,
           promoCode: payload.promoCode,
+          reservationId: payload.reservationId,
           selectedRoom: payload.selectedRoom,
           locale: payload.locale,
         });
