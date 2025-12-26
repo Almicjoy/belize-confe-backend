@@ -576,13 +576,13 @@ app.get("/api/payments/send-reminders", async (req, res) => {
 
     const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
 
-    const isBeginning = day === 1;
-    const isMiddle = day === 15;
-    const isBeforeEnd = day === lastDayOfMonth - 2;
+    // const isBeginning = day === 1;
+    // const isMiddle = day === 15;
+    // const isBeforeEnd = day === lastDayOfMonth - 2;
 
-    if (!isBeginning && !isMiddle && !isBeforeEnd) {
-      return res.json({ message: "Not a reminder day – no emails sent." });
-    }
+    // if (!isBeginning && !isMiddle && !isBeforeEnd) {
+    //   return res.json({ message: "Not a reminder day – no emails sent." });
+    // }
 
     let emailCount = 0;
 
