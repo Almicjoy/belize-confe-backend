@@ -1,4 +1,4 @@
-function paymentReminderEmailEN(user, dueDate) {
+export function paymentReminderEmailEN(user, dueDate) {
   const formatted = dueDate.toLocaleDateString("en-US");
 
   return {
@@ -32,7 +32,7 @@ function paymentReminderEmailEN(user, dueDate) {
   };
 }
 
-function paymentReminderEmailES(user, dueDate) {
+export function paymentReminderEmailES(user, dueDate) {
   const formatted = dueDate.toLocaleDateString("es-ES");
 
   return {

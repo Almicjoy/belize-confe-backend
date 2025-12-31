@@ -1,5 +1,11 @@
-async function processUserPaymentReminder(user, flags) {
-  const { isBeginning, isMiddle, isBeforeEnd } = flags;
+import Payment from "../models/Payment.js";
+import { paymentReminderEmailES } from "../emails/paymentReminderEmail.js";
+import { paymentReminderEmailEN } from "../emails/paymentReminderEmail.js";
+import sendEmail from "../utils/sendEmail.js";
+
+
+export default async function processUserPaymentReminder(user, flags) {
+  // const { isBeginning, isMiddle, isBeforeEnd } = flags;
 
   const payments = await Payment.find({ email: user.email, status: "1" }).sort("createdAt");
   if (payments.length === 0) return; // No valid payments yet → skip
@@ -37,7 +43,7 @@ async function processUserPaymentReminder(user, flags) {
     ({ subject, html } = paymentReminderEmailEN(user, nextDueDate));
   }
 
-  await sendMail({
+  await sendEmail({
     to: user.email,
     subject,
     html,
@@ -47,4 +53,5 @@ async function processUserPaymentReminder(user, flags) {
   });
 
   console.log(`Reminder email sent to ${user.email}`);
+  return true;
 }
