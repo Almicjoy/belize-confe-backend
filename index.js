@@ -810,7 +810,152 @@ app.get("/api/dashboard/registrants", async (req, res) => {
 });
 
 
+app.get("/api/user", async (req, res) => {
+  try {
+    const { email } = req.query;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error("Error retrieving payment:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT endpoint to update user information
+app.put("/api/user/update", async (req, res) => {
+  try {
+    const { email, countryCode, phone, tShirtSize, profilePicUrl } = req.body;
+
+    // Validate required field
+    if (!email) {
+      return res.status(400).json({ 
+        error: "Email is required",
+        message: "Email must be provided to update user information" 
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        error: "Invalid email format",
+        message: "Please provide a valid email address" 
+      });
+    }
+
+    // Validate phone format if provided
+    if (phone && phone.trim() !== "") {
+      if (phone.length < 4 || phone.length > 20) {
+        return res.status(400).json({ 
+          error: "Invalid phone number",
+          message: "Phone number must be between 4 and 20 characters" 
+        });
+      }
+    }
+
+    // Validate country code format if provided
+    if (countryCode && countryCode.trim() !== "") {
+      if (!countryCode.startsWith('+')) {
+        return res.status(400).json({ 
+          error: "Invalid country code",
+          message: "Country code must start with +" 
+        });
+      }
+    }
+
+    // Validate T-shirt size if provided
+    const validSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+    if (tShirtSize && tShirtSize.trim() !== "" && !validSizes.includes(tShirtSize)) {
+      return res.status(400).json({ 
+        error: "Invalid T-shirt size",
+        message: `T-shirt size must be one of: ${validSizes.join(', ')}` 
+      });
+    }
+
+    // Validate profile picture URL if provided
+    if (profilePicUrl && profilePicUrl.trim() !== "") {
+      const urlRegex = /^https?:\/\/.+/;
+      if (!urlRegex.test(profilePicUrl)) {
+        return res.status(400).json({ 
+          error: "Invalid profile picture URL",
+          message: "Profile picture URL must be a valid HTTP or HTTPS URL" 
+        });
+      }
+    }
+
+    // Build update object with only provided fields
+    const updateFields = {};
+    
+    if (countryCode !== undefined) updateFields.countryCode = countryCode.trim();
+    if (phone !== undefined) updateFields.phone = phone.trim();
+    if (tShirtSize !== undefined) updateFields.tShirtSize = tShirtSize.trim();
+    if (profilePicUrl !== undefined) updateFields.profilePicUrl = profilePicUrl.trim();
+
+    // Find and update the user
+    const updatedUser = await User.findOneAndUpdate(
+      { email: email.toLowerCase().trim() },
+      {
+        $set: updateFields
+      },
+      { 
+        new: true, // Return the updated document
+        runValidators: false // Skip required field validation
+      }
+    ).select('-password -resetToken -resetTokenExpiry'); // Exclude sensitive fields
+
+    // Check if user was found
+    if (!updatedUser) {
+      return res.status(404).json({ 
+        error: "User not found",
+        message: "No user found with the provided email address" 
+      });
+    }
+
+    // Log the update (optional, for debugging)
+    console.log(`User updated successfully: ${email}`);
+
+    // Return the updated user data
+    res.status(200).json({
+      message: "Account updated successfully",
+      user: updatedUser
+    });
+
+  } catch (err) {
+    console.error("Error updating user:", err);
+    
+    // Handle specific MongoDB errors
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: "Invalid data format",
+        message: "One or more fields contain invalid data" 
+      });
+    }
+
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ 
+        error: "Validation failed",
+        message: err.message 
+      });
+    }
+
+    // Generic server error
+    res.status(500).json({ 
+      error: "Server error",
+      message: "An error occurred while updating your account. Please try again later." 
+    });
+  }
+});
+
+
+
 
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
