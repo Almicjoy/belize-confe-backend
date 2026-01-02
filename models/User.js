@@ -14,8 +14,8 @@ const userSchema = new Schema(
     clubName: { type: String, required: true },
     birthday: { type: Date, required: true },
     password: { type: String, required: true },
-    tShirtSize: { type: String, required: true },
-    profilePicUrl: { type: String, required: true },
+    tShirtSize: { type: String },
+    profilePicUrl: { type: String },
 
     // Password reset fields
     resetToken: { type: String },          // the random token
