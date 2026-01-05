@@ -190,7 +190,7 @@ app.post("/api/payment/callback", async (req, res) => {
       // 2. Decrease room count + update availability
       const room = await Room.findOne({ id: updatedPayment.selectedRoom });
 
-      if (room) {
+      if (room && updatedPayment.paymentNumber == "1") {
         const newCount = Math.max(room.count - 1, 0);
 
         await Room.findOneAndUpdate(
