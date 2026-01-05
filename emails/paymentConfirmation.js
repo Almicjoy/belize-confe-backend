@@ -15,7 +15,7 @@ export function paymentConfirmationEN(payment, user, room) {
     : null;
 
   return {
-    subject: `Payment Confirmation - LaConfe30`,
+    subject: `Payment Confirmation - LaConfe30: ${payment.description}`,
     html: `
         <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.5; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
         <div style="text-align: center; margin-bottom: 20px;">

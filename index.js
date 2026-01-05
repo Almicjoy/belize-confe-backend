@@ -174,7 +174,7 @@ app.post("/api/payment/callback", async (req, res) => {
     if (status === "1") {
 
       // 1. Decrease promo usage
-      if (updatedPayment.promoCode && updatedPayment.reservationId) {
+      if (updatedPayment.promoCode && updatedPayment.reservationId && updatedPayment.paymentNumber == "1") {
         await Promo.findOneAndUpdate(
           {
             code: updatedPayment.promoCode,
