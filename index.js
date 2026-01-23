@@ -485,8 +485,9 @@ app.post("/api/auth/reset-password", async (req, res) => {
     user.resetTokenExpiry = undefined;
 
     await user.save();
-
+    console.log(res)
     return res.json({ message: "Password updated successfully" });
+    
 
   } catch (err) {
     console.error("Password reset error:", err);
