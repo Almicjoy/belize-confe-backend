@@ -785,10 +785,11 @@ app.get("/api/dashboard/registrants", async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        countryCode: user.countryCode,
+        phone: user.phone,
         country: user.country,
         club: user.clubName,
         age,
-
         roomName,
         paymentPlanId: firstPayment?.planId || null,
         numberOfPayments: userPayments.length || null,
