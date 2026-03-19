@@ -154,7 +154,7 @@ app.post("/api/payment/callback", async (req, res) => {
   console.log("Bank callback:", req.body);
 
   try {
-    const updatedPayment = await Payment.findOneAndUpdate(
+    let updatedPayment = await Payment.findOneAndUpdate(
       { mdOrder },
       {
         operation,
@@ -165,13 +165,31 @@ app.post("/api/payment/callback", async (req, res) => {
       { new: true }
     );
 
-    const isPlanPayment = !!updatedPayment.planId;
-    const isPreconfePayment = Array.isArray(updatedPayment.preconfeIds);
+    let isPlanPayment = false;
+    let isPreconfePayment = false;
 
     if (!updatedPayment) {
-      console.error("Payment record not found for mdOrder:", mdOrder);
-      return res.status(404).send("Payment not found");
+      console.log("Payment not found in Payment collection, trying PreConfePayment...");
+      updatedPayment = await PreConfePayment.findOneAndUpdate(
+        { mdOrder },
+        {
+          status: status || null,
+          callbackData: req.body,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+
+      if (!updatedPayment) {
+        console.error("Payment record not found in either collection for mdOrder:", mdOrder);
+        return res.status(404).send("Payment not found");
+      }
+
+      isPreconfePayment = true;
+    } else {
+      isPlanPayment = true;
     }
+
 
     // ------------------------------------------------------------------
     // SUCCESSFUL PAYMENT
@@ -194,7 +212,8 @@ app.post("/api/payment/callback", async (req, res) => {
           console.log("Promo reservation marked as used");
         }
 
-        // 2. Decrease room count + update availability
+        // 2. Decrease room 
+        //  + update availability
         const room = await Room.findOne({ id: updatedPayment.selectedRoom });
 
         if (room && updatedPayment.paymentNumber == "1") {
