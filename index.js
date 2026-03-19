@@ -1181,6 +1181,29 @@ app.get("/api/preconfe/user-ids", async (req, res) => {
   }
 });
 
+app.get("/api/preconfe/status", async (req, res) => {
+  try {
+    const options = await PreConfe.find(
+      {},
+      { preconfeId: 1, title: 1, destination: 1, price: 1, maxPersons: 1, _id: 0 }
+    ).lean();
+ 
+    const payload = options.map((o) => ({
+      preconfeId: o.preconfeId,
+      title: o.title,
+      destination: o.destination,
+      price: o.price,
+      maxPersons: o.maxPersons,
+      soldOut: o.maxPersons === 0,
+    }));
+ 
+    return res.status(200).json({ options: payload });
+  } catch (err) {
+    console.error("[preconfe/status] error:", err);
+    return res.status(500).json({ error: "Failed to fetch preconfe status" });
+  }
+});
+
 
 
 
