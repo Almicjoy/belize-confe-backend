@@ -274,15 +274,18 @@ app.post("/api/payment/callback", async (req, res) => {
           return res.status(404).send("PreConfe payment not found");
         }
 
-        // 2. Loop through selected PreConfe IDs
-        for (const preconfeId of updatedPayment.preconfeIds) {
+        // 2. Loop through selected PreConfe IDs + collect resolved options
+        const resolvedOptions = [];
 
+        for (const preconfeId of updatedPayment.preconfeIds) {
           const option = await PreConfe.findOne({ preconfeId: String(preconfeId) });
 
           if (!option) {
             console.warn("PreConfe option not found:", preconfeId);
             continue;
           }
+
+          resolvedOptions.push(option); // ✅ collect here for email later
 
           // 3. Skip unlimited options
           if (option.maxPersons === -1) {
@@ -295,45 +298,36 @@ app.post("/api/payment/callback", async (req, res) => {
             const updatedOption = await PreConfe.findOneAndUpdate(
               {
                 preconfeId: String(preconfeId),
-                maxPersons: { $gt: 0 } // prevent going negative
+                maxPersons: { $gt: 0 }
               },
-              {
-                $inc: { maxPersons: -1 }
-              },
+              { $inc: { maxPersons: -1 } },
               { new: true }
             );
 
             if (!updatedOption) {
               console.warn(`No spots left or update failed for PreConfe ID: ${preconfeId}`);
             } else {
-              console.log(
-                `Reduced spots for ${option.destination}. Remaining: ${updatedOption.maxPersons}`
-              );
+              console.log(`Reduced spots for ${option.destination}. Remaining: ${updatedOption.maxPersons}`);
             }
           } else {
             console.warn(`PreConfe already full: ${option.destination}`);
           }
-          // 5. Send PreConfe confirmation email
-          const resolvedOptions = [];
-          for (const preconfeId of updatedPayment.preconfeIds) {
-            const option = await PreConfe.findOne({ preconfeId: String(preconfeId) });
-            if (option) resolvedOptions.push(option);
-          }
+        }
 
-          if (resolvedOptions.length > 0) {
-            const locale = preconfePayment.locale || "en";
-            const emailTemplate = locale === "es"
-              ? preconfeConfirmationES(preconfePayment, resolvedOptions)
-              : preconfeConfirmationEN(preconfePayment, resolvedOptions);
+        // 5. Send confirmation email ONCE after all IDs processed ✅
+        if (resolvedOptions.length > 0) {
+          const locale = preconfePayment.locale || "en";
+          const emailTemplate = locale === "es"
+            ? preconfeConfirmationES(preconfePayment, resolvedOptions)
+            : preconfeConfirmationEN(preconfePayment, resolvedOptions);
 
-            await sendEmail({
-              to: preconfePayment.email,
-              subject: emailTemplate.subject,
-              html: emailTemplate.html,
-              attachments: emailTemplate.attachments,
-            });
-            console.log("PreConfe confirmation email sent.");
-          }
+          await sendEmail({
+            to: preconfePayment.email,
+            subject: emailTemplate.subject,
+            html: emailTemplate.html,
+            attachments: emailTemplate.attachments,
+          });
+          console.log("PreConfe confirmation email sent.");
         }
       }
     }
@@ -364,15 +358,22 @@ app.post("/api/payment/callback", async (req, res) => {
 app.get("/api/payment", async (req, res) => {
   try {
     const { mdOrder } = req.query;
-    console.log(mdOrder)
+    console.log(mdOrder);
 
     const payment = await Payment.findOne({ mdOrder });
 
-    if (!payment) {
-      return res.status(404).json({ error: "Payment not found" });
+    if (payment) {
+      return res.json({ ...payment.toObject(), type: "plan" });
     }
 
-    res.json(payment);
+    const preconfePayment = await PreConfePayment.findOne({ mdOrder });
+
+    if (preconfePayment) {
+      return res.json({ ...preconfePayment.toObject(), type: "preconfe" });
+    }
+
+    return res.status(404).json({ error: "Payment not found" });
+
   } catch (err) {
     console.error("Error retrieving payment:", err);
     res.status(500).json({ error: "Server error" });
