@@ -253,68 +253,70 @@ app.post("/api/payment/callback", async (req, res) => {
           console.log("Payment confirmation email sent.");
         }
       }
-    }
 
-    else if (isPreconfePayment) {
-      console.log("Processing PreConfe payment");
+      else if (isPreconfePayment) {
+        console.log("Processing PreConfe payment");
 
-      // 1. Mark PreConfePayment as successful
-      const preconfePayment = await PreConfePayment.findOneAndUpdate(
-        { mdOrder },
-        {
-          status: 1,
-          updatedAt: new Date(),
-          callbackData: req.body
-        },
-        { new: true }
-      );
+        // 1. Mark PreConfePayment as successful
+        const preconfePayment = await PreConfePayment.findOneAndUpdate(
+          { mdOrder },
+          {
+            status: 1,
+            updatedAt: new Date(),
+            callbackData: req.body
+          },
+          { new: true }
+        );
 
-      if (!preconfePayment) {
-        console.error("PreConfePayment not found for mdOrder:", mdOrder);
-        return res.status(404).send("PreConfe payment not found");
-      }
-
-      // 2. Loop through selected PreConfe IDs
-      for (const preconfeId of updatedPayment.preconfeIds) {
-
-        const option = await PreConfe.findOne({ preconfeId: String(preconfeId) });
-
-        if (!option) {
-          console.warn("PreConfe option not found:", preconfeId);
-          continue;
+        if (!preconfePayment) {
+          console.error("PreConfePayment not found for mdOrder:", mdOrder);
+          return res.status(404).send("PreConfe payment not found");
         }
 
-        // 3. Skip unlimited options
-        if (option.maxPersons === -1) {
-          console.log(`Unlimited spots for ${option.destination}, skipping capacity check`);
-          continue;
-        }
+        // 2. Loop through selected PreConfe IDs
+        for (const preconfeId of updatedPayment.preconfeIds) {
 
-        // 4. Decrement spots safely
-        if (option.maxPersons > 0) {
-          const updatedOption = await PreConfe.findOneAndUpdate(
-            {
-              preconfeId: String(preconfeId),
-              maxPersons: { $gt: 0 } // prevent going negative
-            },
-            {
-              $inc: { maxPersons: -1 }
-            },
-            { new: true }
-          );
+          const option = await PreConfe.findOne({ preconfeId: String(preconfeId) });
 
-          if (!updatedOption) {
-            console.warn(`No spots left or update failed for PreConfe ID: ${preconfeId}`);
-          } else {
-            console.log(
-              `Reduced spots for ${option.destination}. Remaining: ${updatedOption.maxPersons}`
-            );
+          if (!option) {
+            console.warn("PreConfe option not found:", preconfeId);
+            continue;
           }
-        } else {
-          console.warn(`PreConfe already full: ${option.destination}`);
+
+          // 3. Skip unlimited options
+          if (option.maxPersons === -1) {
+            console.log(`Unlimited spots for ${option.destination}, skipping capacity check`);
+            continue;
+          }
+
+          // 4. Decrement spots safely
+          if (option.maxPersons > 0) {
+            const updatedOption = await PreConfe.findOneAndUpdate(
+              {
+                preconfeId: String(preconfeId),
+                maxPersons: { $gt: 0 } // prevent going negative
+              },
+              {
+                $inc: { maxPersons: -1 }
+              },
+              { new: true }
+            );
+
+            if (!updatedOption) {
+              console.warn(`No spots left or update failed for PreConfe ID: ${preconfeId}`);
+            } else {
+              console.log(
+                `Reduced spots for ${option.destination}. Remaining: ${updatedOption.maxPersons}`
+              );
+            }
+          } else {
+            console.warn(`PreConfe already full: ${option.destination}`);
+          }
         }
       }
     }
+
+    
     // ------------------------------------------------------------------
     // FAILED PAYMENT
     // ------------------------------------------------------------------
