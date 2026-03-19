@@ -801,46 +801,42 @@ app.post("/api/promo/reserve", async (req, res) => {
   }
 });
 
-// Dashboard API - get all registrants with full payment info
 app.get("/api/dashboard/registrants", async (req, res) => {
   try {
-    // Fetch all users
     const users = await User.find({}).lean();
-
-    // Fetch successful payments only
     const payments = await Payment.find({ status: "1" }).lean();
-
-    // Fetch all rooms
     const rooms = await Room.find({}).lean();
+    const preconfePayments = await PreConfePayment.find({ status: 1 }).lean();
+    const preconfes = await PreConfe.find({}).lean(); // fetch all preconfe options
 
-    // Map rooms by ID for fast lookup
     const roomMap = {};
-    rooms.forEach(r => {
-      roomMap[r.id] = r;
-    });
+    rooms.forEach(r => { roomMap[r.id] = r; });
 
-    // Group successful payments by userId
+    // Map preconfeId -> title
+    const preconfeMap = {};
+    preconfes.forEach(p => { preconfeMap[String(p.preconfeId)] = p.title; });
+
     const paymentsByUser = {};
     payments.forEach(p => {
       if (!paymentsByUser[p.userId]) paymentsByUser[p.userId] = [];
       paymentsByUser[p.userId].push(p);
     });
 
+    const preconfeByEmail = {};
+    preconfePayments.forEach(p => {
+      if (!preconfeByEmail[p.email]) preconfeByEmail[p.email] = new Set();
+      (p.preconfeIds || []).forEach(id => preconfeByEmail[p.email].add(String(id)));
+    });
+
     const dashboardData = users.map(user => {
       const userId = user._id.toString();
-
-      // All successful payments for this user
       const userPayments = paymentsByUser[userId] || [];
-
-      // Sort by date to find first/last payments
       const sortedPayments = [...userPayments].sort(
         (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
       );
-
       const firstPayment = sortedPayments[0] || null;
       const lastPayment = sortedPayments[sortedPayments.length - 1] || null;
 
-      // Resolve room (based on selectedRoom from firstPayment)
       let room = null;
       if (firstPayment?.selectedRoom && roomMap[firstPayment.selectedRoom]) {
         room = roomMap[firstPayment.selectedRoom];
@@ -848,27 +844,22 @@ app.get("/api/dashboard/registrants", async (req, res) => {
 
       const roomName = room?.name || null;
       const roomPrice = room?.price ?? null;
-
       const promoCode = firstPayment?.promoCode || null;
-
-      // Full price (only from room)
       const fullPrice = roomPrice ?? null;
-
-      // Apply 5% discount if a promo code exists
       const fullPriceAfterDiscount =
-        promoCode && roomPrice
-          ? Number((roomPrice * 0.95).toFixed(2))
-          : null;
-
-      // Total amount paid so far
+        promoCode && roomPrice ? Number((roomPrice * 0.95).toFixed(2)) : null;
       const totalPaid = userPayments.length
         ? userPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
         : null;
-
-      // Age calculation
       const age = user.birthday
         ? Math.floor((Date.now() - new Date(user.birthday)) / (365.25 * 24 * 60 * 60 * 1000))
         : null;
+
+      const userPreconfeIds = preconfeByEmail[user.email] || new Set();
+      const preconfeRegistrations = {};
+      for (let i = 1; i <= 6; i++) {
+        preconfeRegistrations[`preconfe${i}`] = userPreconfeIds.has(String(i));
+      }
 
       return {
         firstName: user.firstName,
@@ -886,14 +877,18 @@ app.get("/api/dashboard/registrants", async (req, res) => {
         fullPrice,
         fullPriceAfterDiscount,
         promoCode,
-
         dateRegistered: user.createdAt || null,
         firstPaymentDate: firstPayment?.createdAt || null,
         lastPaymentDate: lastPayment?.createdAt || null,
+        ...preconfeRegistrations,
       };
     });
 
-    res.json({ success: true, data: dashboardData });
+    res.json({
+      success: true,
+      data: dashboardData,
+      preconfeTitles: preconfeMap, // e.g. { "1": "Workshop A", "2": "City Tour", ... }
+    });
   } catch (err) {
     console.error("Dashboard error:", err);
     res.status(500).json({ success: false, error: "Server error" });
