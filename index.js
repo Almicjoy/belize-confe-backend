@@ -13,6 +13,8 @@ import Payment from "./models/Payment.js";
 import User from "./models/User.js";  
 import Room from "./models/Room.js";
 import Promo from "./models/Promo.js";
+import PreConfe from "./models/PreConfe.js";
+import PreConfePayment from "./models/PreConfePayment.js";
 import crypto from "crypto";
 import sendEmail from "./utils/sendEmail.js";
 import processUserPaymentReminder from "./utils/processUserPaymentReminder.js"
@@ -163,6 +165,9 @@ app.post("/api/payment/callback", async (req, res) => {
       { new: true }
     );
 
+    const isPlanPayment = !!updatedPayment.planId;
+    const isPreconfePayment = Array.isArray(updatedPayment.preconfeIds);
+
     if (!updatedPayment) {
       console.error("Payment record not found for mdOrder:", mdOrder);
       return res.status(404).send("Payment not found");
@@ -173,61 +178,124 @@ app.post("/api/payment/callback", async (req, res) => {
     // ------------------------------------------------------------------
     if (status === "1") {
 
-      // 1. Decrease promo usage
-      if (updatedPayment.promoCode && updatedPayment.reservationId && updatedPayment.paymentNumber == "1") {
-        await Promo.findOneAndUpdate(
-          {
-            code: updatedPayment.promoCode,
-            "reservations.id": updatedPayment.reservationId
-          },
-          {
-            $set: { "reservations.$.status": "used" }
-          }
-        );
-        console.log("Promo reservation marked as used");
-      }
+      if (isPlanPayment) {
 
-      // 2. Decrease room count + update availability
-      const room = await Room.findOne({ id: updatedPayment.selectedRoom });
-
-      if (room && updatedPayment.paymentNumber == "1") {
-        const newCount = Math.max(room.count - 1, 0);
-
-        await Room.findOneAndUpdate(
-          { id: updatedPayment.selectedRoom },
-          {
-            count: newCount,
-            available: newCount > 0 ? "yes" : "no"
-          }
-        );
-
-        console.log("Room count reduced. New count:", newCount);
-      } else {
-        console.log("Room not found for room id:", updatedPayment.selectedRoom);
-      }
-
-      // 3. Update user plan
-      const user = await User.findOneAndUpdate(
-        { email: updatedPayment.email },
-        {
-          hasSelectedPlan: true,
-          selectedPlan: updatedPayment.planId,
-          currentOrderId: null
+        // 1. Decrease promo usage
+        if (updatedPayment.promoCode && updatedPayment.reservationId && updatedPayment.paymentNumber == "1") {
+          await Promo.findOneAndUpdate(
+            {
+              code: updatedPayment.promoCode,
+              "reservations.id": updatedPayment.reservationId
+            },
+            {
+              $set: { "reservations.$.status": "used" }
+            }
+          );
+          console.log("Promo reservation marked as used");
         }
-      );
 
-      // 4. Send payment confirmation email
-      if (user && room) {
-        const locale = updatedPayment.locale || "en";
-        const emailTemplate = locale === "es" 
-          ? paymentConfirmationES(updatedPayment, user, room)
-          : paymentConfirmationEN(updatedPayment, user, room);
+        // 2. Decrease room count + update availability
+        const room = await Room.findOne({ id: updatedPayment.selectedRoom });
 
-        await sendEmail({ to: user.email, subject: emailTemplate.subject, html: emailTemplate.html, attachments: emailTemplate.attachments });
-        console.log("Payment confirmation email sent.");
+        if (room && updatedPayment.paymentNumber == "1") {
+          const newCount = Math.max(room.count - 1, 0);
+
+          await Room.findOneAndUpdate(
+            { id: updatedPayment.selectedRoom },
+            {
+              count: newCount,
+              available: newCount > 0 ? "yes" : "no"
+            }
+          );
+
+          console.log("Room count reduced. New count:", newCount);
+        } else {
+          console.log("Room not found for room id:", updatedPayment.selectedRoom);
+        }
+
+        // 3. Update user plan
+        const user = await User.findOneAndUpdate(
+          { email: updatedPayment.email },
+          {
+            hasSelectedPlan: true,
+            selectedPlan: updatedPayment.planId,
+            currentOrderId: null
+          }
+        );
+
+        // 4. Send payment confirmation email
+        if (user && room) {
+          const locale = updatedPayment.locale || "en";
+          const emailTemplate = locale === "es" 
+            ? paymentConfirmationES(updatedPayment, user, room)
+            : paymentConfirmationEN(updatedPayment, user, room);
+
+          await sendEmail({ to: user.email, subject: emailTemplate.subject, html: emailTemplate.html, attachments: emailTemplate.attachments });
+          console.log("Payment confirmation email sent.");
+        }
       }
     }
 
+    else if (isPreconfePayment) {
+      console.log("Processing PreConfe payment");
+
+      // 1. Mark PreConfePayment as successful
+      const preconfePayment = await PreConfePayment.findOneAndUpdate(
+        { mdOrder },
+        {
+          status: 1,
+          updatedAt: new Date(),
+          callbackData: req.body
+        },
+        { new: true }
+      );
+
+      if (!preconfePayment) {
+        console.error("PreConfePayment not found for mdOrder:", mdOrder);
+        return res.status(404).send("PreConfe payment not found");
+      }
+
+      // 2. Loop through selected PreConfe IDs
+      for (const preconfeId of updatedPayment.preconfeIds) {
+
+        const option = await PreConfe.findOne({ preconfeId: String(preconfeId) });
+
+        if (!option) {
+          console.warn("PreConfe option not found:", preconfeId);
+          continue;
+        }
+
+        // 3. Skip unlimited options
+        if (option.maxPersons === -1) {
+          console.log(`Unlimited spots for ${option.destination}, skipping capacity check`);
+          continue;
+        }
+
+        // 4. Decrement spots safely
+        if (option.maxPersons > 0) {
+          const updatedOption = await PreConfe.findOneAndUpdate(
+            {
+              preconfeId: String(preconfeId),
+              maxPersons: { $gt: 0 } // prevent going negative
+            },
+            {
+              $inc: { maxPersons: -1 }
+            },
+            { new: true }
+          );
+
+          if (!updatedOption) {
+            console.warn(`No spots left or update failed for PreConfe ID: ${preconfeId}`);
+          } else {
+            console.log(
+              `Reduced spots for ${option.destination}. Remaining: ${updatedOption.maxPersons}`
+            );
+          }
+        } else {
+          console.warn(`PreConfe already full: ${option.destination}`);
+        }
+      }
+    }
     // ------------------------------------------------------------------
     // FAILED PAYMENT
     // ------------------------------------------------------------------
@@ -950,6 +1018,145 @@ app.put("/api/user/update", async (req, res) => {
       error: "Server error",
       message: "An error occurred while updating your account. Please try again later." 
     });
+  }
+});
+
+app.post("/api/preconfe/register", async (req, res) => {
+  try {
+    const payload = {
+      userName: process.env.PAYMENT_USERNAME,
+      password: process.env.PAYMENT_PASSWORD,
+      ...req.body,
+    };
+
+    const bankFields = [
+      "userName",
+      "password",
+      "amount",
+      "returnUrl",
+      "description",
+      "orderNumber",
+      "dynamicCallbackUrl",
+      "clientID",
+      "email",
+    ];
+
+    const bankPayload = {};
+    bankFields.forEach((field) => {
+      if (payload[field] !== undefined && payload[field] !== null) {
+        bankPayload[field] = String(payload[field]);
+      }
+    });
+
+    if (payload.clientId) {
+      bankPayload.clientID = String(payload.clientId);
+    }
+
+    const formData = new FormData();
+    Object.entries(bankPayload).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    console.log("PreConfe Bank Payload:", bankPayload);
+
+    if (Number(payload.amount) === 0) {
+      try {
+        if (!payload.clientId) throw new Error("clientId (userId) is required");
+        if (!payload.preconfeIds?.length) throw new Error("preconfeIds are required");
+        await PreConfePayment.create({
+          mdOrder: null,
+          userId: payload.clientId,
+          orderNumber: payload.orderNumber,
+          amount: 0,
+          preconfeIds: payload.preconfeIds,
+          email: payload.email,
+          fullName: payload.fullName,
+          description: payload.description,
+          status: "1",           // <-- immediately confirmed, no payment needed
+          formURL: null,
+          bankResponse: null,
+          locale: payload.locale,
+        });
+        console.log("Free PreConfePayment saved with status 1");
+      } catch (dbError) {
+        console.error("Error saving free PreConfePayment:", dbError);
+        return res.status(500).json({ error: "Failed to save free registration" });
+      }
+      return res.json({ free: true, success: true });  // <-- short-circuit, no bank call
+    }
+
+
+    const response = await axios.post(
+      `${process.env.PAYMENT_URL}/register.do`,
+      formData,
+      { headers: formData.getHeaders() }
+    );
+
+    if (response.data && response.data.orderId && !response.data.errorCode) {
+      try {
+        if (!payload.clientId) throw new Error("clientId (userId) is required");
+        if (!payload.preconfeIds?.length) throw new Error("preconfeIds are required");
+
+        await PreConfePayment.create({
+          mdOrder: response.data.orderId,
+          userId: payload.clientId,
+          orderNumber: payload.orderNumber,
+          amount: payload.amount,
+          preconfeIds: payload.preconfeIds,
+          email: payload.email,
+          fullName: payload.fullName,
+          description: payload.description,
+          status: "-1",
+          formURL: response.data.formURL,
+          bankResponse: response.data,
+          locale: payload.locale,
+        });
+
+        console.log("PreConfePayment saved successfully");
+      } catch (dbError) {
+        console.error("Error saving PreConfePayment:", dbError);
+      }
+    }
+
+    res.json({
+      sentPayload: payload,
+      bankResponse: response.data,
+    });
+  } catch (error) {
+    console.error("PreConfe payment error:", error.response?.data || error.message);
+    res.status(500).json({ error: "PreConfe payment request failed" });
+  }
+});
+
+app.get("/api/preconfe/user-ids", async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    // 1. Get all successful PreConfe payments for this user
+    const payments = await PreConfePayment.find(
+      {
+        email,
+        status: 1 // only successful payments
+      },
+      { preconfeIds: 1, _id: 0 } // only fetch needed field
+    );
+
+    // 2. Flatten + deduplicate
+    const uniqueIds = [
+      ...new Set(
+        payments.flatMap((p) => p.preconfeIds || [])
+      )
+    ];
+
+    res.json({ preconfeIds: uniqueIds });
+
+  } catch (err) {
+    console.error("Error fetching user preconfe IDs:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 

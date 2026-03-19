@@ -26,13 +26,13 @@ export default async function processUserPaymentReminder(user, flags) {
   );
 
   // Only send emails for payments due THIS month
-  const now = new Date();
-  if (
-    nextDueDate.getMonth() !== now.getMonth() ||
-    nextDueDate.getFullYear() !== now.getFullYear()
-  ) {
-    return;
-  }
+  // const now = new Date();
+  // if (
+  //   nextDueDate.getMonth() !== now.getMonth() ||
+  //   nextDueDate.getFullYear() !== now.getFullYear()
+  // ) {
+  //   return;
+  // }
 
   // If today is a valid reminder day → send email
   let subject, html;
