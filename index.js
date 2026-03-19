@@ -22,6 +22,7 @@ import registrationEmailEN from "./emails/registration_en.js";
 import registrationEmailES from "./emails/registration_es.js";
 import { paymentConfirmationEN } from "./emails/paymentConfirmation.js";
 import { paymentConfirmationES } from "./emails/paymentConfirmation.js";
+import { preconfeConfirmationEN, preconfeConfirmationES } from "./emails/preconfeConfirmation.js";
 
 const bankFields = [
   "userName",
@@ -311,6 +312,27 @@ app.post("/api/payment/callback", async (req, res) => {
             }
           } else {
             console.warn(`PreConfe already full: ${option.destination}`);
+          }
+          // 5. Send PreConfe confirmation email
+          const resolvedOptions = [];
+          for (const preconfeId of updatedPayment.preconfeIds) {
+            const option = await PreConfe.findOne({ preconfeId: String(preconfeId) });
+            if (option) resolvedOptions.push(option);
+          }
+
+          if (resolvedOptions.length > 0) {
+            const locale = preconfePayment.locale || "en";
+            const emailTemplate = locale === "es"
+              ? preconfeConfirmationES(preconfePayment, resolvedOptions)
+              : preconfeConfirmationEN(preconfePayment, resolvedOptions);
+
+            await sendEmail({
+              to: preconfePayment.email,
+              subject: emailTemplate.subject,
+              html: emailTemplate.html,
+              attachments: emailTemplate.attachments,
+            });
+            console.log("PreConfe confirmation email sent.");
           }
         }
       }
